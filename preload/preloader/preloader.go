@@ -57,6 +57,8 @@ var (
 	idleTimeout           = flag.Duration("idle_conn_timeout", 90*time.Second, "Idle connections with no use within this period will be closed (see http.Transport)")
 	disableKeepAlive      = flag.Bool("disable_keepalive", false, "Disable HTTP Keep-Alive (see http.Transport)")
 	expectContinueTimeout = flag.Duration("expect_continue_timeout", time.Second, "Amount of time to wait for a response if request uses Expect: 100-continue (see http.Transport")
+	startDateStr		  = flag.String("start_date", "", "Minimum emission date for certificates (RFC3339, es: 2025-11-01T00:00:00Z)")
+	endDateStr			  = flag.String("end_date", "", "Maximum emission date for certificates (RFC3339, es: 2025-12-31T23:59:59Z)")
 )
 
 func recordSct(addedCerts chan<- *preload.AddedCert, certDer ct.ASN1Cert, sct *ct.SignedCertificateTimestamp) {
@@ -137,7 +139,23 @@ func main() {
 	flag.Parse()
 
 	var sctFileWriter io.Writer
+	var startDate, endDate time.Time
 	var err error
+
+	if *startDateStr != "" {
+		startDate, err = time.Parse(time.RFC3339, *startDateStr)
+		if err != nil {
+			klog.Exitf("start_date format not valid (use RFC3339): %v", err)
+		}
+	}
+
+	if *endDateStr != "" {
+		endDate, err = time.Parse(time.RFC3339, *endDateStr)
+		if err != nil {
+			klog.Exitf("end_date format not valid (use RFC3339): %v", err)
+		}
+	}
+
 	if *sctInputFile != "" {
 		sctFile, err := os.Create(*sctInputFile)
 		if err != nil {
@@ -250,6 +268,15 @@ func main() {
 			klog.Errorf("Failed to parse cert at %d: %v", rawEntry.Index, err)
 			return
 		}
+
+		// Time filter
+		notBefore := entry.X509Cert.NotBefore
+		if !startDate.IsZero() && notBefore.Before(startDate) {
+			return // Too old
+		}
+		if !endDate.IsZero() && notBefore.After(endDate) {
+			return // Too new
+		}
 		certs <- entry
 	}
 	addPreChainFunc := func(rawEntry *ct.RawLogEntry) {
@@ -257,6 +284,15 @@ func main() {
 		if x509.IsFatal(err) {
 			klog.Errorf("Failed to parse precert at %d: %v", rawEntry.Index, err)
 			return
+		}
+
+		// Time filter
+		notBefore := entry.Precert.TBSCertificate.NotBefore
+		if !startDate.IsZero() && notBefore.Before(startDate) {
+			return // Too old
+		}
+		if !endDate.IsZero() && notBefore.After(endDate) {
+			return // Too new
 		}
 		precerts <- entry
 	}
