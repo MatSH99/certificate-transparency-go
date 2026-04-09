@@ -23,6 +23,10 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
+	"io"
+	"time"
+	"bufio"
 
 	ct "github.com/google/certificate-transparency-go"
 	"github.com/google/certificate-transparency-go/jsonclient"
@@ -137,7 +141,7 @@ func (c *LogClient) GetSTH(ctx context.Context) (*ct.SignedTreeHead, error) {
 		}
 	}
 
-	monitorURL = strings.Replace(strings.Replace(c.BaseURI(), "log.", "mon.", 1), "sun", "sky", 1)
+	monitorURL := strings.Replace(strings.Replace(c.BaseURI(), "log.", "mon.", 1), "sun", "sky", 1)
 	checkpointURL := strings.TrimSuffix(monitorURL, "/") + "/checkpoint"
 
 	req, _ := http.NewRequestWithContext(ctx, "GET", checkpointURL, nil)
@@ -157,7 +161,7 @@ func (c *LogClient) GetSTH(ctx context.Context) (*ct.SignedTreeHead, error) {
 	}
 
 	treeSize, _ := strconv.ParseUint(lines[2], 10, 64)
-	rootHash, _ := base64.StdEncoding.DecodeToString(lines[3])
+	rootHash, _ := base64.StdEncoding.DecodeString(lines[3])
 
 
 	sth := &ct.SignedTreeHead{
