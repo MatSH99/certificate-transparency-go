@@ -50,7 +50,7 @@ type uaTransport struct {
 }
 
 func (t *uaTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Certificate Transparency Monitor)")
+	req.Header.Set("User-Agent", "Mozilla/5.0")
 	return t.rt.RoundTrip(req)
 }
 
