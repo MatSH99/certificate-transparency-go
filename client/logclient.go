@@ -152,15 +152,47 @@ func (c *LogClient) GetSTH(ctx context.Context) (*ct.SignedTreeHead, error) {
 	}
 	defer hresp.Body.Close()
 
-	body, _ := io.ReadAll(hresp.Body)
-	lines := strings.Split(string(body), "\n")
+	bodyBytes, err := io.ReadAll(hresp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read checkpoint body: %v", err)
+	}
+	bodyStr := strings.ReplaceAll(string(bodyBytes), "\r\n", "\n")
+	lines := strings.Split(bodyStr, "\n")
+	
+	var treeSize uint64
+	var rootHash []byte
+	foundSize := false
 
-	if len(lines) < 4 {
-		return nil, fmt.Errorf("checkpoint format too short")
+	for i, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		ts, err := strconv.ParseUint(line, 10, 64)
+		if err == nil {
+			treeSize = ts
+			foundSize = true
+			
+			for j := i + 1; j < len(lines); j++ {
+				nextTrimmed := strings.TrimSpace(lines[j])
+				if nextTrimmed == "" {
+					continue
+				}
+				decoded, err := base64.StdEncoding.DecodeString(nextTrimmed)
+				// Un hash SHA256 deve essere di 32 byte
+				if err == nil && len(decoded) == 32 {
+					rootHash = decoded
+					break
+				}
+			}
+			break 
+		}
 	}
 
-	treeSize, _ := strconv.ParseUint(lines[2], 10, 64)
-	rootHash, _ := base64.StdEncoding.DecodeString(lines[3])
+	if !foundSize || len(rootHash) == 0 {
+		return nil, fmt.Errorf("invalid checkpoint format from %s: size or 32-byte hash not found", checkpointURL)
+	}
 
 
 	sth := &ct.SignedTreeHead{
