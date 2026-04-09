@@ -26,7 +26,6 @@ import (
 	"strings"
 	"io"
 	"time"
-	"bufio"
 
 	ct "github.com/google/certificate-transparency-go"
 	"github.com/google/certificate-transparency-go/jsonclient"
