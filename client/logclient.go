@@ -45,6 +45,15 @@ type CheckLogClient interface {
 	GetProofByHash(ctx context.Context, hash []byte, treeSize uint64) (*ct.GetProofByHashResponse, error)
 }
 
+type uaTransport struct {
+	rt http.RoundTripper
+}
+
+func (t *uaTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Certificate Transparency Monitor)")
+	return t.rt.RoundTrip(req)
+}
+
 // New constructs a new LogClient instance.
 // |uri| is the base URI of the CT log instance to interact with, e.g.
 // https://ct.googleapis.com/pilot
@@ -52,6 +61,17 @@ type CheckLogClient interface {
 // |opts| can be used to provide a custom logger interface and a public key
 // for signature verification.
 func New(uri string, hc *http.Client, opts jsonclient.Options) (*LogClient, error) {
+
+	if hc == nil {
+		hc = http.DefaultClient
+	}
+	
+	if hc.Transport == nil {
+		hc.Transport = http.DefaultTransport
+	}
+	
+	hc.Transport = &uaTransport{rt: hc.Transport}
+	
 	logClient, err := jsonclient.New(uri, hc, opts)
 	if err != nil {
 		return nil, err
